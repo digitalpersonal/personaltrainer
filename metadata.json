@@ -1,0 +1,6 @@
+{
+  "name": "Plataforma de Gestão - Personal Trainer",
+  "description": "Sistema completo de gestão para personal trainers e alunos, com anamnese de 5 etapas, construtor de treinos, controle financeiro, calendário e área do aluno integrada.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
