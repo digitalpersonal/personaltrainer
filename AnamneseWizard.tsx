@@ -1,496 +1,527 @@
-import React, { useState } from "react";
-import { Pagamento, Aluno, Plano } from "../types";
-import { PLANOS_PADRAO } from "../data";
-import { BarChart, Bar, Cell, PieChart, Pie, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { DollarSign, Percent, AlertCircle, Calendar, Plus, Printer, CheckCircle, Flame, ShieldAlert, Sparkles, FileSpreadsheet } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { User, onAuthStateChanged } from "firebase/auth";
+import { Aluno, Anamnese, ProgramaTreinos, Pagamento, SessaoAgendamento, AvaliacaoFisica, Mensagem, ProgressPhoto, Plano, PersonalTrainerConfig } from "./types";
+import { db, auth } from "./lib/firebase";
+import { collection, getDocs } from "firebase/firestore";
 
-interface FinanceModuleProps {
-  pagamentos: Pagamento[];
-  alunos: Aluno[];
-  onAddPagamento: (pag: Pagamento) => void;
-  onUpdatePagamentoStatus: (id: string, status: Pagamento["status"]) => void;
-  onFreezeAluno: (alunoId: string, status: Aluno["status"]) => void;
-}
+// Component imports
+import DashboardTrainer from "./components/DashboardTrainer";
+import DashboardStudent from "./components/DashboardStudent";
+import FinanceModule from "./components/FinanceModule";
+import CalendarScheduler from "./components/CalendarScheduler";
+import AnamneseWizard from "./components/AnamneseWizard";
+import WorkoutConstructor from "./components/WorkoutConstructor";
+import Login from "./components/Login";
+// ... (rest of imports remain the same)
+import {
+  Dumbbell,
+  Users,
+  DollarSign,
+  Calendar,
+  LogOut,
+  Sparkles,
+  ShieldAlert,
+  Menu,
+  Activity,
+  Award,
+  MessageCircle,
+  ExternalLink
+} from "lucide-react";
 
-const COLORS = ["#10b981", "#3b82f6", "#fbbf24", "#f472b6", "#ef4444"];
+export default function App() {
+  // Authentication states
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user);
+      setLoading(false);
+    });
+    return unsubscribe;
+  }, []);
 
-export default function FinanceModule({ pagamentos, alunos, onAddPagamento, onUpdatePagamentoStatus, onFreezeAluno }: FinanceModuleProps) {
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [receiptPayment, setReceiptPayment] = useState<Pagamento | null>(null);
+  // Core application state
+  const [alunos, setAlunos] = useState<Aluno[]>([]);
+  const [anamneses, setAnamneses] = useState<Anamnese[]>([]);
+  const [programas, setProgramas] = useState<ProgramaTreinos[]>([]);
+  const [pagamentos, setPagamentos] = useState<Pagamento[]>([]);
+  const [agendamentos, setAgendamentos] = useState<SessaoAgendamento[]>([]);
+  const [avaliacoes, setAvaliacoes] = useState<AvaliacaoFisica[]>([]);
+  const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>([]);
+  const [planos, setPlanos] = useState<Plano[]>([
+    { id: "plano_mensal", nome: "Mensal", valor: 150, sessoesInclusas: 12, descricao: "" },
+    { id: "plano_trimestral", nome: "Trimestral", valor: 400, sessoesInclusas: 36, descricao: "" }
+  ]);
+  const [config, setConfig] = useState<PersonalTrainerConfig>({
+    nome: "Felipe",
+    cref: "123456-G/SP",
+    especializacoes: ["Hipertrofia", "Emagrecimento"],
+    fotoUrl: "",
+    corPrimaria: "#10b981",
+    corSecundaria: "#000000",
+    modoEscuro: true,
+    notificacoes: { whatsapp: true, email: false, push: false },
+    lembretesAutomaticos: true
+  });
 
-  // Form states for manual registration
-  const [selectedAlunoId, setSelectedAlunoId] = useState("");
-  const [selectedPlanoId, setSelectedPlanoId] = useState("plano_mensal");
-  const [valor, setValor] = useState(150);
-  const [dataVencimento, setDataVencimento] = useState(new Date().toISOString().split("T")[0]);
-  const [mesReferencia, setMesReferencia] = useState("Julho/2026");
-  const [formaPagamento, setFormaPagamento] = useState<Pagamento["formaPagamento"]>("Pix");
+  // Alunos ordenados alfabeticamente
+  const sortedAlunos = [...alunos].sort((a, b) => a.nome.localeCompare(b.nome));
 
-  // Calculations
-  const totalRecebido = pagamentos.filter(p => p.status === "Pago").reduce((acc, curr) => acc + curr.valor, 0);
-  const totalPendente = pagamentos.filter(p => p.status === "Pendente").reduce((acc, curr) => acc + curr.valor, 0);
-  const totalAtrasado = pagamentos.filter(p => p.status === "Atrasado").reduce((acc, curr) => acc + curr.valor, 0);
-  const taxaInadimplencia = pagamentos.length > 0 ? (totalAtrasado / (totalRecebido + totalPendente + totalAtrasado)) * 100 : 0;
+  useEffect(() => {
+    if (loading || !user) return;
+    const fetchData = async () => {
+      const alunosSnapshot = await getDocs(collection(db, "alunos"));
+      setAlunos(alunosSnapshot.docs.map(doc => doc.data() as Aluno));
+      
+      const anamnesesSnapshot = await getDocs(collection(db, "anamneses"));
+      setAnamneses(anamnesesSnapshot.docs.map(doc => doc.data() as Anamnese));
+      
+      const programasSnapshot = await getDocs(collection(db, "programas"));
+      setProgramas(programasSnapshot.docs.map(doc => doc.data() as ProgramaTreinos));
+      
+      const pagamentosSnapshot = await getDocs(collection(db, "pagamentos"));
+      setPagamentos(pagamentosSnapshot.docs.map(doc => doc.data() as Pagamento));
+      
+      const agendamentosSnapshot = await getDocs(collection(db, "agendamentos"));
+      setAgendamentos(agendamentosSnapshot.docs.map(doc => doc.data() as SessaoAgendamento));
+      
+      const avaliacoesSnapshot = await getDocs(collection(db, "avaliacoes"));
+      setAvaliacoes(avaliacoesSnapshot.docs.map(doc => doc.data() as AvaliacaoFisica));
+      
+      const progressPhotosSnapshot = await getDocs(collection(db, "progressPhotos"));
+      setProgressPhotos(progressPhotosSnapshot.docs.map(doc => doc.data() as ProgressPhoto));
+    };
+    fetchData();
+  }, [user, loading]);
 
-  // Recharts: Income by payment method
-  const payMethodsData = ["Pix", "Cartao", "Dinheiro", "Transferencia"].map(m => {
-    const sum = pagamentos
-      .filter(p => p.status === "Pago" && p.formaPagamento === m)
-      .reduce((acc, curr) => acc + curr.valor, 0);
-    return { name: m === "Cartao" ? "Cartão" : m, value: sum };
-  }).filter(item => item.value > 0);
+  // Active Admin Tab (for Personal Trainer)
+  const [activeAdminTab, setActiveAdminTab] = useState<"dashboard" | "finance" | "calendar">("dashboard");
 
-  // Recharts: Income by plan
-  const planData = PLANOS_PADRAO.map(pl => {
-    const sum = pagamentos
-      .filter(p => p.status === "Pago" && p.planoId === pl.id)
-      .reduce((acc, curr) => acc + curr.valor, 0);
-    return { name: pl.nome, value: sum };
-  }).filter(item => item.value > 0);
+  // Secondary sub-views (overlay wizard / program builders)
+  const [activeBuilderStudent, setActiveBuilderStudent] = useState<Aluno | null>(null);
+  const [activeAnamneseStudent, setActiveAnamneseStudent] = useState<Aluno | null>(null);
 
-  const handleRegisterPayment = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedAlunoId) return;
+  // Quick State Modifiers (Callbacks passed to sub-components)
+  
+  const handleAddAluno = (nome: string, email: string, telefone: string, planoId: string) => {
+    const newStudent: Aluno = {
+      id: "aluno_" + (alunos.length + 1),
+      nome,
+      email,
+      telefone,
+      fotoUrl: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=150&auto=format&fit=crop",
+      status: "Ativo",
+      planoAtivoId: planoId,
+      dataCadastro: new Date().toISOString().split("T")[0],
+      ultimoAcesso: new Date().toISOString(),
+      contatoEmergencia: { nome: "Não informado", telefone: "", parentesco: "" },
+      anamneseCompleta: false
+    };
 
-    const newPag: Pagamento = {
-      id: "pag_" + Math.random().toString(36).substr(2, 9),
-      alunoId: selectedAlunoId,
-      planoId: selectedPlanoId,
-      valor: parseFloat(valor.toString()),
-      dataVencimento,
-      mesReferencia,
+    // Pre-create pending anamnese
+    const newAnamnese: Anamnese = {
+      nomeCompleto: nome,
+      dataNascimento: "",
+      genero: "Masculino",
+      estadoCivil: "Solteiro",
+      telefone,
+      email,
+      endereco: "",
+      profissao: "",
+      horarioTrabalho: "",
+      nivelEstresse: 5,
+      condicoesMedicas: [],
+      cirurgiasAnteriores: "",
+      medicacoesContinuas: "",
+      alergias: "",
+      lesoes: "",
+      restricoesMedicas: "",
+      contatoEmergencia: { nome: "", telefone: "", parentesco: "" },
+      praticaAtividade: false,
+      detalheAtividade: "",
+      atividadesAnteriores: "",
+      esportesPraticados: "",
+      experienciaMusculacao: "iniciante",
+      preferenciasHorario: "",
+      disponibilidadeSemanal: [],
+      objetivoPrincipal: "Hipertrofia",
+      objetivosSecundarios: "",
+      pesoAtual: 0,
+      pesoDesejado: 0,
+      altura: 0,
+      circunferencias: { cintura: 0, quadril: 0, braço: 0, coxa: 0, panturrilha: 0 },
+      gorduraEstimada: 0,
+      refeicoesDia: 3,
+      consumoAgua: 2,
+      sonoHoras: 7,
+      sonoDificuldade: false,
+      alcoolTabaco: "",
+      nivelMotivacao: 8,
+      termoResponsabilidadeAceito: false,
+      termoImagemAceito: false,
+      assinaturaDigital: "",
+      dataPreenchimento: "",
+      status: "Pendente",
+      ultimaRevisao: ""
+    };
+
+    // Add first month pending payment log
+    const newPay: Pagamento = {
+      id: "pag_auto_" + Math.random().toString(36).substr(2, 9),
+      alunoId: newStudent.id,
+      planoId,
+      valor: planoId === "plano_mensal" ? 150 : planoId === "plano_trimestral" ? 400 : 750,
+      dataVencimento: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split("T")[0], // 5 days from now
+      mesReferencia: "Mês Inicial/2026",
       status: "Pendente"
     };
 
-    onAddPagamento(newPag);
-    setShowAddModal(false);
-    setSelectedAlunoId("");
+    setAlunos(prev => [...prev, newStudent]);
+    setAnamneses(prev => [...prev, newAnamnese]);
+    setPagamentos(prev => [...prev, newPay]);
+    alert(`Aluno(a) ${nome} cadastrado com sucesso! Um faturamento pendente foi gerado automaticamente.`);
   };
 
-  const getAlunoName = (id: string) => {
-    const found = alunos.find(a => a.id === id);
-    return found ? found.nome : "Aluno não encontrado";
+  const handleSaveAnamnese = (data: Anamnese) => {
+    setAnamneses(prev => {
+      const idx = prev.findIndex(an => an.nomeCompleto.toLowerCase() === data.nomeCompleto.toLowerCase());
+      if (idx >= 0) {
+        const updated = [...prev];
+        updated[idx] = data;
+        return updated;
+      }
+      return [...prev, data];
+    });
+
+    // Mark student anamnese as complete in student record
+    setAlunos(prev =>
+      prev.map(a =>
+        a.nome.toLowerCase() === data.nomeCompleto.toLowerCase() ? { ...a, anamneseCompleta: true } : a
+      )
+    );
+    setActiveAnamneseStudent(null);
   };
 
-  const getPlanoName = (id: string) => {
-    const found = PLANOS_PADRAO.find(p => p.id === id);
-    return found ? found.nome : "Plano Padrão";
+  const handleSaveWorkoutProgram = (programa: ProgramaTreinos) => {
+    // Check if student has complete anamnese
+    const student = alunos.find(a => a.id === programa.alunoId);
+    const anamnese = anamneses.find(an => an.nomeCompleto.toLowerCase() === student?.nome.toLowerCase());
+    
+    if (anamnese?.status !== "Completa") {
+      alert("Atenção: Por razões de saúde e responsabilidade médica, é proibido prescrever treinos para alunos com Anamnese Pendente! Favor preencher primeiro.");
+      return;
+    }
+
+    setProgramas(prev => {
+      // Invalidate existing active programs for this student
+      const deactivated = prev.map(p => p.alunoId === programa.alunoId ? { ...p, status: "Concluido" as const } : p);
+      return [...deactivated, programa];
+    });
+    setActiveBuilderStudent(null);
+    alert(`Novo programa de treino "${programa.titulo}" salvo com sucesso para o aluno!`);
   };
+
+  const handleAddPayment = (newPag: Pagamento) => {
+    setPagamentos(prev => [...prev, newPag]);
+  };
+
+  const handleUpdatePaymentStatus = (id: string, status: Pagamento["status"]) => {
+    setPagamentos(prev =>
+      prev.map(p =>
+        p.id === id
+          ? {
+              ...p,
+              status,
+              dataPagamento: status === "Pago" ? new Date().toISOString().split("T")[0] : undefined,
+              formaPagamento: status === "Pago" ? "Pix" : undefined
+            }
+          : p
+      )
+    );
+  };
+
+  const handleUpdatePlano = (updated: Plano) => {
+    setPlanos(prev => prev.map(p => p.id === updated.id ? updated : p));
+  };
+  const handleAddPlano = (novo: Plano) => {
+    setPlanos(prev => [...prev, novo]);
+  };
+  const handleDeletePlano = (id: string) => {
+    setPlanos(prev => prev.filter(p => p.id !== id));
+  };
+  const handleUpdateConfig = (newConfig: PersonalTrainerConfig) => {
+    setConfig(newConfig);
+  };
+
+  const handleFreezeAluno = (alunoId: string, status: Aluno["status"]) => {
+    setAlunos(prev => prev.map(a => (a.id === alunoId ? { ...a, status } : a)));
+    alert(`O acesso do aluno foi alterado para: ${status.toUpperCase()}!`);
+  };
+
+  const handleAddAppointment = (sessao: SessaoAgendamento) => {
+    setAgendamentos(prev => [...prev, sessao]);
+  };
+
+  const handleUpdateAppointmentStatus = (id: string, status: SessaoAgendamento["status"], justificativa?: string) => {
+    setAgendamentos(prev =>
+      prev.map(s => (s.id === id ? { ...s, status, justificativa: justificativa || s.justificativa } : s))
+    );
+  };
+
+  const handleAddAvaliacao = (av: AvaliacaoFisica) => {
+    setAvaliacoes(prev => [...prev, av]);
+    alert("Avaliação Corporal registrada com sucesso! Gráficos de evolução atualizados.");
+  };
+
+  const handleAddProgressPhoto = (photo: ProgressPhoto) => {
+    setProgressPhotos(prev => [...prev, photo]);
+  };
+
+  const handleDeleteProgressPhoto = (photoId: string) => {
+    setProgressPhotos(prev => prev.filter(p => p.id !== photoId));
+  };
+
+  // Student Logs a Check-in after completing workout
+  const handleStudentCheckIn = (studentId: string, workoutTitle: string) => {
+    // Add check-in session directly onto the calendar with completed status
+    const newSessao: SessaoAgendamento = {
+      id: "ag_checkin_" + Math.random().toString(36).substr(2, 9),
+      alunoId: studentId,
+      alunoNome: alunos.find(a => a.id === studentId)?.nome || "Aluno",
+      data: new Date().toISOString().split("T")[0],
+      horario: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+      duracao: 45,
+      tipo: "Presencial",
+      status: "Realizado",
+      feedback: `Check-in automático do aluno no treino: ${workoutTitle}`
+    };
+
+    setAgendamentos(prev => [...prev, newSessao]);
+  };
+
+  // 1. LOGIN PREVIEW SCREEN
+  if (loading) return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
+  if (!user) return <Login />;
+
+  // 2. MAIN LOGGED-IN WORKSPACE
+  const isPersonal = user.email === "felipe@personaltrainer.com.br";
+  const loggedInStudent = alunos.find(a => a.email === user.email);
 
   return (
-    <div className="space-y-6">
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans print:bg-white print:text-black">
       
-      {/* Visual Finance summary cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400">
-            <DollarSign className="w-5 h-5" />
+      {/* Visual Header bar - Hidden in Print */}
+      <header className="bg-zinc-900 border-b border-zinc-800 px-6 py-4 flex justify-between items-center print:hidden">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center text-black font-extrabold font-display text-sm">
+            PT
           </div>
           <div>
-            <span className="text-[10px] text-zinc-400 block uppercase font-bold">Receita do Mês (Pago)</span>
-            <span className="text-xl font-bold text-zinc-100">R$ {totalRecebido.toFixed(2)}</span>
+            <h1 className="text-sm font-black uppercase tracking-wider text-white font-display">FELIPE</h1>
+            <p className="text-[10px] text-emerald-400 font-semibold uppercase tracking-widest font-mono">Personal Trainer Integrado</p>
           </div>
         </div>
 
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400">
-            <Calendar className="w-5 h-5" />
+        {/* User Badge & Switch Exit controls */}
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <span className="text-[10px] text-zinc-500 uppercase font-bold block">Perfil Logado</span>
+            <span className="text-xs font-bold text-zinc-300">
+              {isPersonal ? "Administrador (Trainer)" : loggedInStudent?.nome}
+            </span>
           </div>
-          <div>
-            <span className="text-[10px] text-zinc-400 block uppercase font-bold">Previsto (Pendentes)</span>
-            <span className="text-xl font-bold text-zinc-100">R$ {totalPendente.toFixed(2)}</span>
-          </div>
-        </div>
 
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex items-center gap-3 border-l-4 border-l-red-600">
-          <div className="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center text-red-400">
-            <AlertCircle className="w-5 h-5" />
-          </div>
-          <div>
-            <span className="text-[10px] text-red-400 block uppercase font-bold">Valor em Atraso</span>
-            <span className="text-xl font-bold text-red-400">R$ {totalAtrasado.toFixed(2)}</span>
-          </div>
+          <button
+            onClick={() => auth.signOut()}
+            className="bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 p-2 rounded-xl text-zinc-400 hover:text-red-400 transition-colors cursor-pointer"
+            title="Sair do Perfil"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
+      </header>
 
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-zinc-950mber-500/10 flex items-center justify-center text-amber-400">
-            <Percent className="w-5 h-5" />
-          </div>
-          <div>
-            <span className="text-[10px] text-zinc-400 block uppercase font-bold">Taxa de Inadimplência</span>
-            <span className="text-xl font-bold text-zinc-100">{taxaInadimplencia.toFixed(1)}%</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Charts section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Main Workspace Frame */}
+      <div className="flex-1 flex flex-col md:flex-row min-h-0">
         
-        {/* Chart A: Formas de Pagamento */}
-        <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-5">
-          <h3 className="text-xs font-bold text-zinc-200 mb-4 uppercase tracking-wider">Receita por Forma de Pagamento</h3>
-          {payMethodsData.length === 0 ? (
-            <div className="h-48 flex items-center justify-center text-xs text-zinc-500 italic">Sem registros de receitas recebidas ainda.</div>
-          ) : (
-            <div className="h-48">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={payMethodsData} cx="50%" cy="50%" innerRadius={40} outerRadius={70} fill="#8884d8" paddingAngle={5} dataKey="value">
-                    {payMethodsData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => `R$ ${value}`} contentStyle={{ backgroundColor: "#171717", borderColor: "#262626", color: "#f5f5f5" }} />
-                  <Legend wrapperStyle={{ fontSize: 10 }} />
-                </PieChart>
-              </ResponsiveContainer>
+        {/* SIDEBAR NAVIGATION PANEL (Visible ONLY for Personal Trainer Trainer Role) - Hidden in Print */}
+        {isPersonal && (
+          <aside className="w-full md:w-64 bg-zinc-900 border-r border-zinc-800 p-4 space-y-4 print:hidden flex-shrink-0">
+            <div className="text-zinc-500 uppercase font-bold tracking-wider text-[9px] px-2 block mb-2 font-mono">Painel Administrativo</div>
+            <nav className="space-y-1">
+              <button
+                onClick={() => {
+                  setActiveAdminTab("dashboard");
+                  setActiveBuilderStudent(null);
+                  setActiveAnamneseStudent(null);
+                }}
+                className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] cursor-pointer ${
+                  activeAdminTab === "dashboard" && !activeBuilderStudent && !activeAnamneseStudent
+                    ? "bg-emerald-500 text-black shadow-lg shadow-emerald-500/10"
+                    : "text-zinc-400 hover:bg-zinc-850 hover:text-white"
+                }`}
+              >
+                <Users className="w-4 h-4" /> Alunos & Prontuários
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveAdminTab("finance");
+                  setActiveBuilderStudent(null);
+                  setActiveAnamneseStudent(null);
+                }}
+                className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] cursor-pointer ${
+                  activeAdminTab === "finance"
+                    ? "bg-emerald-500 text-black shadow-lg shadow-emerald-500/10"
+                    : "text-zinc-400 hover:bg-zinc-850 hover:text-white"
+                }`}
+              >
+                <DollarSign className="w-4 h-4" /> Controle Financeiro
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveAdminTab("calendar");
+                  setActiveBuilderStudent(null);
+                  setActiveAnamneseStudent(null);
+                }}
+                className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] cursor-pointer ${
+                  activeAdminTab === "calendar"
+                    ? "bg-emerald-500 text-black shadow-lg shadow-emerald-500/10"
+                    : "text-zinc-400 hover:bg-zinc-850 hover:text-white"
+                }`}
+              >
+                <Calendar className="w-4 h-4" /> Agenda & Presenças
+              </button>
+            </nav>
+          </aside>
+        )}
+
+        {/* CONTENT STAGE / VIEWPORT VIEWPORTS */}
+        <main className="flex-1 p-6 overflow-y-auto max-w-7xl mx-auto w-full print:p-0 print:max-w-none">
+          
+          {/* A. PERSONAL TRAINER STAGE VIEWS */}
+          {isPersonal && (
+            <div className="space-y-6">
+              
+              {/* Overlay / Nested View A: Workout program constructor */}
+              {activeBuilderStudent && (
+                <WorkoutConstructor
+                  aluno={activeBuilderStudent}
+                  anamnese={anamneses.find(an => an.nomeCompleto.toLowerCase().includes(activeBuilderStudent.nome.toLowerCase()))}
+                  programaParaEditar={programas.find(p => p.alunoId === activeBuilderStudent.id && p.status === "Ativo")}
+                  onSave={handleSaveWorkoutProgram}
+                  onCancel={() => setActiveBuilderStudent(null)}
+                />
+              )}
+
+              {/* Overlay / Nested View B: Anamnese digital wizard (ReadOnly or pre-filled edit) */}
+              {activeAnamneseStudent && (
+                <AnamneseWizard
+                  studentName={activeAnamneseStudent.nome}
+                  initialData={anamneses.find(an => an.nomeCompleto.toLowerCase().includes(activeAnamneseStudent.nome.toLowerCase()))}
+                  onSave={handleSaveAnamnese}
+                  onCancel={() => setActiveAnamneseStudent(null)}
+                  readOnly={activeAnamneseStudent.anamneseCompleta}
+                />
+              )}
+
+              {/* Standard tabs toggling */}
+              {!activeBuilderStudent && !activeAnamneseStudent && (
+                <>
+                  {activeAdminTab === "dashboard" && (
+                    <DashboardTrainer
+                      alunos={sortedAlunos}
+                      anamneses={anamneses}
+                      programas={programas}
+                      pagamentos={pagamentos}
+                      agendamentos={agendamentos}
+                      avaliacoes={avaliacoes}
+                      progressPhotos={progressPhotos}
+                      planos={planos}
+                      config={config}
+                      onAddProgressPhoto={handleAddProgressPhoto}
+                      onDeleteProgressPhoto={handleDeleteProgressPhoto}
+                      onOpenAnamnese={(st) => setActiveAnamneseStudent(st)}
+                      onOpenWorkoutBuilder={(st) => setActiveBuilderStudent(st)}
+                      onAddAluno={handleAddAluno}
+                      onAddAvaliacao={handleAddAvaliacao}
+                      onUpdatePlano={handleUpdatePlano}
+                      onAddPlano={handleAddPlano}
+                      onDeletePlano={handleDeletePlano}
+                      onUpdateConfig={handleUpdateConfig}
+                    />
+                  )}
+
+                  {activeAdminTab === "finance" && (
+                    <FinanceModule
+                      pagamentos={pagamentos}
+                      alunos={sortedAlunos}
+                      onAddPagamento={handleAddPayment}
+                      onUpdatePagamentoStatus={handleUpdatePaymentStatus}
+                      onFreezeAluno={handleFreezeAluno}
+                    />
+                  )}
+
+                  {activeAdminTab === "calendar" && (
+                    <CalendarScheduler
+                      agendamentos={agendamentos}
+                      alunos={sortedAlunos}
+                      onAddAgendamento={handleAddAppointment}
+                      onUpdateAgendamentoStatus={handleUpdateAppointmentStatus}
+                    />
+                  )}
+                </>
+              )}
             </div>
           )}
-        </div>
 
-        {/* Chart B: Receita por Plano */}
-        <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-5">
-          <h3 className="text-xs font-bold text-zinc-200 mb-4 uppercase tracking-wider">Receita por Tipo de Plano</h3>
-          {planData.length === 0 ? (
-            <div className="h-48 flex items-center justify-center text-xs text-zinc-500 italic">Sem registros de receitas recebidas ainda.</div>
-          ) : (
-            <div className="h-48">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={planData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#262626" />
-                  <XAxis dataKey="name" stroke="#737373" fontSize={10} />
-                  <YAxis stroke="#737373" fontSize={10} />
-                  <Tooltip formatter={(value) => `R$ ${value}`} contentStyle={{ backgroundColor: "#171717", borderColor: "#262626", color: "#f5f5f5" }} />
-                  <Bar dataKey="value" fill="#10b981">
-                    {planData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+          {/* B. STUDENT ROLE PORTAL VIEWPORT */}
+          {!isPersonal && loggedInStudent && (
+            <div className="space-y-6">
+              <DashboardStudent
+                aluno={loggedInStudent}
+                anamneses={anamneses}
+                programas={programas}
+                pagamentos={pagamentos}
+                agendamentos={agendamentos}
+                avaliacoes={avaliacoes}
+                progressPhotos={progressPhotos}
+                onAddProgressPhoto={handleAddProgressPhoto}
+                onDeleteProgressPhoto={handleDeleteProgressPhoto}
+                onSaveAnamnese={handleSaveAnamnese}
+                onStudentCheckIn={handleStudentCheckIn}
+              />
+
+              {/* WhatsApp Support Panel for Students */}
+              <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-lg flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-400 flex-shrink-0">
+                    <MessageCircle className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-zinc-100 uppercase tracking-wider">
+                      Suporte Direto com Prof. Felipe
+                    </h3>
+                    <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+                      Todas as suas dúvidas de treinos, agendamentos, envios de feedbacks ou vídeos de execução técnica são resolvidas diretamente via WhatsApp pessoal do professor.
+                    </p>
+                  </div>
+                </div>
+                <a
+                  href={`https://wa.me/5511987654321?text=Ol%C3%A1%20professor%20Felipe%2C%20aqui%20%C3%A9%20o%28a%29%20${encodeURIComponent(loggedInStudent.nome)}!%20Gostaria%20de%20conversar%20sobre%20meu%20treino.`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full md:w-auto text-center bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold px-5 py-3 rounded-xl text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/10"
+                >
+                  Fale pelo WhatsApp <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
             </div>
           )}
-        </div>
+        </main>
       </div>
-
-      {/* Main Billing Table */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden shadow-lg">
-        <div className="p-4 border-b border-zinc-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
-          <div>
-            <h3 className="text-sm font-bold text-zinc-200 uppercase tracking-wider">Histórico Geral de Faturamento</h3>
-            <p className="text-[11px] text-zinc-500">Gestão de cobranças, vencimentos e recibos digitais</p>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-black px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-300 hover:scale-[1.03] active:scale-[0.97] cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" /> Registrar Lançamento
-            </button>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-zinc-950/60 text-zinc-400 font-semibold border-b border-zinc-800 text-[10px] uppercase">
-                <th className="p-3">Aluno</th>
-                <th className="p-3">Plano</th>
-                <th className="p-3">Referência</th>
-                <th className="p-3">Valor</th>
-                <th className="p-3">Vencimento</th>
-                <th className="p-3">Data Pgto</th>
-                <th className="p-3">Forma</th>
-                <th className="p-3 text-center">Status</th>
-                <th className="p-3 text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-800">
-              {pagamentos.map(pag => {
-                const aluno = alunos.find(a => a.id === pag.alunoId);
-                const isOverdue = pag.status === "Atrasado";
-                return (
-                  <tr
-                    key={pag.id}
-                    className={`hover:bg-zinc-800/30 transition-colors ${
-                      isOverdue ? "border-l-2 border-l-red-500 bg-red-950/5" : ""
-                    }`}
-                  >
-                    <td className="p-3 font-semibold text-zinc-200">
-                      <div>{getAlunoName(pag.alunoId)}</div>
-                      {aluno && aluno.status === "Congelado" && (
-                        <span className="text-[9px] bg-sky-950 text-sky-400 border border-sky-900 px-1.5 py-0.2 rounded mt-0.5 inline-block">
-                          Acesso Congelado
-                        </span>
-                      )}
-                    </td>
-                    <td className="p-3 text-zinc-400">{getPlanoName(pag.planoId)}</td>
-                    <td className="p-3 text-zinc-400">{pag.mesReferencia}</td>
-                    <td className="p-3 font-bold text-zinc-200">R$ {pag.valor.toFixed(2)}</td>
-                    <td className="p-3 text-zinc-400">{pag.dataVencimento}</td>
-                    <td className="p-3 text-zinc-400">{pag.dataPagamento || "-"}</td>
-                    <td className="p-3 text-zinc-400">{pag.formaPagamento || "-"}</td>
-                    <td className="p-3 text-center">
-                      <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase inline-block ${
-                          pag.status === "Pago"
-                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-950"
-                            : pag.status === "Pendente"
-                            ? "bg-blue-500/10 text-blue-400 border border-blue-950"
-                            : "bg-red-500/10 text-red-400 border border-red-950"
-                        }`}
-                      >
-                        {pag.status}
-                      </span>
-                    </td>
-                    <td className="p-3 text-right space-x-1.5">
-                      {pag.status !== "Pago" && (
-                        <button
-                          onClick={() => {
-                            // Quick mark as paid
-                            onUpdatePagamentoStatus(pag.id, "Pago");
-                          }}
-                          className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold bg-emerald-500/10 hover:bg-emerald-500/20 px-2 py-1 rounded transition-all duration-300 hover:scale-[1.05] active:scale-[0.95] cursor-pointer"
-                        >
-                          Confirmar Pago
-                        </button>
-                      )}
-                      
-                      {/* Freeze toggler for overdues */}
-                      {isOverdue && aluno && aluno.status !== "Congelado" && (
-                        <button
-                          onClick={() => onFreezeAluno(pag.alunoId, "Congelado")}
-                          className="text-[10px] text-sky-400 hover:text-sky-300 font-bold bg-sky-500/10 hover:bg-sky-500/20 px-2 py-1 rounded transition-all duration-300 hover:scale-[1.05] active:scale-[0.95] cursor-pointer"
-                          title="Bloqueia acesso do aluno inadimplente"
-                        >
-                          Congelar Acesso
-                        </button>
-                      )}
-                      {aluno && aluno.status === "Congelado" && (
-                        <button
-                          onClick={() => onFreezeAluno(pag.alunoId, "Ativo")}
-                          className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold bg-emerald-500/10 hover:bg-emerald-500/20 px-2 py-1 rounded transition-all duration-300 hover:scale-[1.05] active:scale-[0.95] cursor-pointer"
-                        >
-                          Reativar Aluno
-                        </button>
-                      )}
-
-                      <button
-                        onClick={() => setReceiptPayment(pag)}
-                        className="text-zinc-400 hover:text-zinc-200 p-1 rounded inline-block transition-all duration-300 hover:scale-[1.1] active:scale-[0.9] cursor-pointer"
-                        title="Ver Recibo"
-                      >
-                        <Printer className="w-3.5 h-3.5 inline" />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* PLAN DETAILS LIST OVERVIEW */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-lg">
-        <h3 className="text-sm font-bold text-zinc-200 uppercase tracking-wider mb-4">Portfólio de Planos e Sessões</h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {PLANOS_PADRAO.map(pl => (
-            <div key={pl.id} className="bg-zinc-950/40 border border-zinc-800 rounded-xl p-4 flex flex-col justify-between">
-              <div>
-                <span className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-950 px-2 py-0.5 rounded font-bold uppercase inline-block mb-2">
-                  {pl.nome}
-                </span>
-                <p className="text-xs text-zinc-400 line-clamp-2 mt-1">{pl.descricao}</p>
-              </div>
-              <div className="border-t border-zinc-800/80 pt-3 mt-4 flex justify-between items-baseline">
-                <span className="text-[10px] text-zinc-500 uppercase font-semibold">{pl.sessoesInclusas} sessões/mês</span>
-                <span className="text-base font-bold text-zinc-100">R$ {pl.valor.toFixed(0)}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* MODAL: REGISTER PAYMENT */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-md shadow-2xl text-zinc-200">
-            <h3 className="text-base font-bold text-emerald-400 mb-4 flex items-center gap-1.5">
-              <Plus className="w-5 h-5 text-emerald-400" /> Registrar Lançamento de Cobrança
-            </h3>
-            
-            <form onSubmit={handleRegisterPayment} className="space-y-4">
-              <div>
-                <label className="block text-xs text-zinc-400 mb-1">Selecione o Aluno</label>
-                <select
-                  required
-                  value={selectedAlunoId}
-                  onChange={e => {
-                    const id = e.target.value;
-                    setSelectedAlunoId(id);
-                    // Match default price
-                    const aluno = alunos.find(a => a.id === id);
-                    if (aluno) {
-                      const plano = PLANOS_PADRAO.find(p => p.id === aluno.planoAtivoId);
-                      if (plano) {
-                        setValor(plano.valor);
-                        setSelectedPlanoId(plano.id);
-                      }
-                    }
-                  }}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-sm focus:outline-none focus:border-emerald-500"
-                >
-                  <option value="">-- Selecione um Aluno --</option>
-                  {alunos.map(a => (
-                    <option key={a.id} value={a.id}>{a.nome} (Plano: {getPlanoName(a.planoAtivoId)})</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-zinc-400 mb-1">Plano Vinculado</label>
-                  <select
-                    value={selectedPlanoId}
-                    onChange={e => {
-                      setSelectedPlanoId(e.target.value);
-                      const plano = PLANOS_PADRAO.find(p => p.id === e.target.value);
-                      if (plano) setValor(plano.valor);
-                    }}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-xs"
-                  >
-                    {PLANOS_PADRAO.map(pl => (
-                      <option key={pl.id} value={pl.id}>{pl.nome}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs text-zinc-400 mb-1">Valor do Plano (R$)</label>
-                  <input
-                    type="number"
-                    required
-                    value={valor}
-                    onChange={e => setValor(parseFloat(e.target.value))}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-xs text-zinc-100"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-zinc-400 mb-1">Mês de Referência</label>
-                  <input
-                    type="text"
-                    required
-                    value={mesReferencia}
-                    onChange={e => setMesReferencia(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-xs"
-                    placeholder="ex: Julho/2026"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-zinc-400 mb-1">Data de Vencimento</label>
-                  <input
-                    type="date"
-                    required
-                    value={dataVencimento}
-                    onChange={e => setDataVencimento(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-xs text-zinc-100"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 border-t border-zinc-800 pt-4 mt-6">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="bg-zinc-800 hover:bg-zinc-750 text-zinc-300 px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-300 hover:scale-[1.03] active:scale-[0.97] cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="bg-emerald-500 hover:bg-emerald-400 text-black px-5 py-2 rounded-xl text-xs font-bold transition-all duration-300 hover:scale-[1.03] active:scale-[0.97] cursor-pointer"
-                >
-                  Lançar Cobrança
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* PRINT DIALOG: DIGITAL RECEIPT */}
-      {receiptPayment && (
-        <div className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-50 print:relative print:bg-white print:p-0">
-          <div className="bg-white text-black p-8 rounded-2xl w-full max-w-xl shadow-2xl relative border border-zinc-300 print:border-none print:shadow-none">
-            
-            {/* Stamp Logo */}
-            <div className="flex justify-between items-start border-b border-zinc-300 pb-4 mb-6">
-              <div>
-                <h2 className="text-xl font-bold uppercase tracking-wide text-zinc-800">Recibo de Pagamento Digital</h2>
-                <p className="text-[10px] text-zinc-500 font-bold mt-0.5 uppercase">Felipe Personal Trainer — CREF 012345-G/SP</p>
-              </div>
-              <div className="text-right">
-                <span className="text-xs bg-zinc-100 text-zinc-600 px-2 py-1 rounded font-bold border border-zinc-200">
-                  Nº {receiptPayment.id.toUpperCase()}
-                </span>
-              </div>
-            </div>
-
-            {/* Main receipt text block */}
-            <div className="space-y-4 text-xs text-zinc-700 leading-relaxed">
-              <p>
-                Declaramos para os devidos fins de direito que recebemos de{" "}
-                <strong className="text-black text-sm">{getAlunoName(receiptPayment.alunoId)}</strong> a importância líquida de{" "}
-                <strong className="text-black text-sm">R$ {receiptPayment.valor.toFixed(2)}</strong> (Valor correspondente por extenso), referente ao plano desportivo{" "}
-                <strong className="text-black">{getPlanoName(receiptPayment.planoId)}</strong> de treinamento físico personalizado para o período de referência de{" "}
-                <strong className="text-black">{receiptPayment.mesReferencia}</strong>.
-              </p>
-
-              <div className="bg-zinc-50 border border-zinc-100 rounded-lg p-3 grid grid-cols-2 gap-2 text-[11px] mt-4">
-                <div><strong>Data do Vencimento:</strong> {receiptPayment.dataVencimento}</div>
-                <div><strong>Data de Pagamento:</strong> {receiptPayment.dataPagamento || "Pendente"}</div>
-                <div><strong>Forma de Pagamento:</strong> {receiptPayment.formaPagamento || "-"}</div>
-                <div><strong>Status do Lançamento:</strong> <span className="font-bold text-emerald-600">{receiptPayment.status}</span></div>
-              </div>
-            </div>
-
-            {/* Signature Area */}
-            <div className="mt-12 pt-8 border-t border-zinc-300 grid grid-cols-2 gap-4 text-center text-[10px] text-zinc-500">
-              <div>
-                <div className="h-8 flex items-end justify-center border-b border-zinc-300 pb-1 italic font-semibold text-zinc-700">
-                  {getAlunoName(receiptPayment.alunoId)}
-                </div>
-                <span className="mt-1 block">Assinatura do Aluno</span>
-              </div>
-              <div>
-                <div className="h-8 flex items-end justify-center border-b border-zinc-300 pb-1 font-bold text-zinc-800">
-                  Felipe
-                </div>
-                <span className="mt-1 block">Assinatura do Personal</span>
-              </div>
-            </div>
-
-            {/* Print action footer */}
-            <div className="flex justify-end gap-2 border-t border-zinc-200 pt-4 mt-8 print:hidden">
-              <button
-                onClick={() => setReceiptPayment(null)}
-                className="bg-zinc-200 hover:bg-zinc-300 text-zinc-700 px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-300 hover:scale-[1.03] active:scale-[0.97] cursor-pointer"
-              >
-                Voltar
-              </button>
-              <button
-                onClick={() => window.print()}
-                className="flex items-center gap-1.5 bg-zinc-800 hover:bg-zinc-700 text-white px-5 py-2 rounded-xl text-xs font-bold transition-all duration-300 hover:scale-[1.03] active:scale-[0.97] cursor-pointer"
-              >
-                <Printer className="w-4 h-4" /> Imprimir Recibo
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
