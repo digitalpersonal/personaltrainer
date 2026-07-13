@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Aluno, Anamnese, ProgramaTreinos, Pagamento, SessaoAgendamento, AvaliacaoFisica, ProgressPhoto } from "../types";
-import { Lock, FileText, Dumbbell, Activity, Calendar, ShieldAlert, Sparkles, CheckCircle, RefreshCw, Video } from "lucide-react";
+import { Lock, FileText, Dumbbell, Activity, Calendar, ShieldAlert, Sparkles, CheckCircle, RefreshCw, Video, DollarSign } from "lucide-react";
 import AnamneseWizard from "./AnamneseWizard";
 import EvolutionCharts from "./EvolutionCharts";
 import ProgressPhotoGallery from "./ProgressPhotoGallery";
@@ -95,9 +95,9 @@ export default function DashboardStudent({
 
         {/* Inner sub tabs */}
         <div className="flex flex-wrap gap-1 w-full md:w-auto">
-          {(["treino", "anamnese", "evolucao", "calendario"] as const).map(tab => {
-            const label = tab === "treino" ? "Meus Treinos" : tab === "anamnese" ? "Ficha Anamnese" : tab === "evolucao" ? "Evolução Corporal" : "Meus Agendamentos";
-            const Icon = tab === "treino" ? Dumbbell : tab === "anamnese" ? FileText : tab === "evolucao" ? Activity : Calendar;
+          {(["treino", "anamnese", "evolucao", "calendario", "financeiro"] as const).map(tab => {
+            const label = tab === "treino" ? "Meus Treinos" : tab === "anamnese" ? "Ficha Anamnese" : tab === "evolucao" ? "Evolução Corporal" : tab === "calendario" ? "Meus Agendamentos" : "Financeiro";
+            const Icon = tab === "treino" ? Dumbbell : tab === "anamnese" ? FileText : tab === "evolucao" ? Activity : tab === "calendario" ? Calendar : DollarSign;
             return (
               <button
                 key={tab}
@@ -379,6 +379,43 @@ export default function DashboardStudent({
                           : "bg-red-500/10 text-red-400 border-red-950"
                       }`}>
                         {s.status}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SUB-TAB 5: FINANCEIRO */}
+      {activeSubTab === "financeiro" && (
+        <div className="space-y-6">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-lg">
+            <h3 className="text-sm font-bold text-zinc-200 uppercase tracking-wider mb-3">Histórico Financeiro</h3>
+            <div className="space-y-3">
+              {pagamentos.filter(p => p.alunoId === aluno.id).length === 0 ? (
+                <div className="text-center py-10 text-zinc-500 italic text-xs">
+                  Nenhum registro de pagamento encontrado.
+                </div>
+              ) : (
+                pagamentos.filter(p => p.alunoId === aluno.id).map(p => (
+                  <div key={p.id} className="bg-zinc-950/40 border border-zinc-800 p-4 rounded-xl flex justify-between items-center">
+                    <div>
+                      <h4 className="text-xs font-bold text-zinc-100">{p.mesReferencia}</h4>
+                      <p className="text-[10px] text-zinc-500 mt-0.5">Vencimento: {p.dataVencimento}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs font-bold block text-zinc-200">R$ {p.valor.toFixed(2)}</span>
+                      <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase border ${
+                        p.status === "Pago"
+                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-950"
+                          : p.status === "Pendente"
+                          ? "bg-blue-500/10 text-blue-400 border-blue-950"
+                          : "bg-red-500/10 text-red-400 border-red-950"
+                      }`}>
+                        {p.status}
                       </span>
                     </div>
                   </div>
